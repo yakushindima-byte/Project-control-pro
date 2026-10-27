@@ -624,6 +624,7 @@ function cellIn(arr, i, c, v){
     ops.forEach(o => h += `<option value="${esc(o)}"${o==v?" selected":""}>${esc(c.o==="vat"?vatL(o):o)}</option>`);
     return h + "</select>";
   }
+  if(c.t==="combo") return `<input list="dl-${c.o}" ${a}${dis} value="${esc(v??"")}" placeholder="выберите или введите" aria-label="${esc(c.h)}">`;
   if(c.t==="date") return `<input type="date" ${a}${dis} value="${esc(v||"")}" aria-label="${esc(c.h)}">`;
   if(c.t==="money"||c.t==="num") return `<input class="n" inputmode="decimal" ${a}${dis} value="${v===undefined||v===null||v===""?"":esc(c.t==="money"?nf2.format(v):String(v).replace(".",","))}" aria-label="${esc(c.h)}">`;
   if(c.t==="pct") return `<input class="n" inputmode="decimal" ${a}${dis} value="${v===undefined||v===null||v===""?"":String(+(v*100).toFixed(2)).replace(".",",")}" aria-label="${esc(c.h)}">`;
@@ -821,7 +822,7 @@ V.payments = () => {
   const cols = [
     {h:"Плановая дата",k:"date",t:"date",w:122}, {h:"Тип операции",k:"type",t:"sel",o:()=>["Поступление","Расход"],w:115},
     {h:"Проект",k:"proj",t:"sel",o:"proj",w:80}, {h:"Объект",k:"obj",calc:i=>R.pay[i].obj,w:160},
-    {h:"Контрагент",k:"contr",t:"sel",o:"contr",w:185}, {h:"Статья затрат",k:"art",t:"sel",o:"cost",w:125},
+    {h:"Контрагент",k:"contr",t:"combo",o:"contr",w:185}, {h:"Статья затрат",k:"art",t:"sel",o:"cost",w:125},
     {h:"Назначение платежа",k:"what",w:220}, {h:"Сумма, ₽",k:"amt",t:"money",w:110},
     {h:"Статус оплаты",k:"status",t:"sel",o:()=>["План","Оплачено","Отменено"],w:105}, {h:"Фактическая дата",k:"fdate",t:"date",w:122},
     {h:"Контроль",k:"ctrl",calc:i=>R.pay[i].ctrl,t:"status",w:110}, {h:"Дата в ДДС",k:"dds",calc:i=>R.pay[i].dds,t:"date",w:90},
@@ -837,7 +838,7 @@ V.payments = () => {
 V.purchases = () => {
   const cols = [
     {h:"Проект",k:"proj",t:"sel",o:"proj",w:80}, {h:"Объект",k:"obj",calc:i=>R.buy[i].obj,w:150}, {h:"Система",k:"sys",t:"sel",o:"sys",w:85},
-    {h:"Оборудование / позиция",k:"pos",w:230}, {h:"Поставщик",k:"sup",t:"sel",o:"contr",w:175}, {h:"Кол-во",k:"qty",t:"num",w:70}, {h:"Ед.",k:"unit",t:"sel",o:"unit",w:70},
+    {h:"Оборудование / позиция",k:"pos",w:230}, {h:"Поставщик",k:"sup",t:"combo",o:"contr",w:175}, {h:"Кол-во",k:"qty",t:"num",w:70}, {h:"Ед.",k:"unit",t:"sel",o:"unit",w:70},
     {h:"Цена, ₽",k:"price",t:"money",w:95}, {h:"Стоимость, ₽",k:"cost",calc:i=>R.buy[i].cost,t:"money",w:110},
     {h:"Срок по договору",k:"due",t:"date",w:122}, {h:"Прогноз поставки",k:"fc",t:"date",w:122},
     {h:"Статус поставки",k:"status",t:"sel",o:()=>["Запланировано","Заказано","Оплачено","В пути","Получено","Отменено"],w:120},
@@ -956,7 +957,7 @@ V.setup = () => {
   [["Системы","systems"],["Статьи затрат","cost"],["Этапы проекта","stages"],["Исполнители","exec"],["Руководители","pms"],["Причины замены","reasons"],["Причины срыва сроков","delays"],["Ед. изм.","units"]].forEach(([t,k]) => {
     h += `<div class="card"><h3>${t}</h3><ul>${S.lists[k].map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`;
   });
-  return h + `</div><p class="note">В Excel-версии справочники дополняются своими значениями прямо на листе «Настройки».</p></section>`;
+  return h + `</div><p class="note">Новые контрагенты добавляются сами: просто впишите название в столбце «Контрагент» в Платежах или «Поставщик» в Закупках. В Excel-версии справочники дополняются на листе «Настройки».</p></section>`;
 };
 V.buy = () => {
   return `<div class="buy"><section class="card" style="padding:22px">
@@ -1015,7 +1016,7 @@ function render(keepScroll){
   document.title = cur==="dash" ? "PROJECT CONTROL PRO" : sh.t + " — PROJECT CONTROL PRO";
   document.getElementById("repdate").value = S.settings.repDate || "";
   nav();
-  document.getElementById("view").innerHTML = V[cur]();
+  document.getElementById("view").innerHTML = V[cur]() + `<datalist id="dl-contr">${S.lists.contr.map(x=>`<option value="${esc(x)}">`).join("")}</datalist>`;
   if(keepScroll){ document.querySelectorAll("[data-tw]").forEach(el => { const s = sc[el.dataset.tw]; if(s){ el.scrollLeft = s[0]; el.scrollTop = s[1]; } }); window.scrollTo(0, y); }
   else window.scrollTo(0,0);
   drawCharts();
@@ -1038,6 +1039,7 @@ document.addEventListener("change", e => {
     if(el.tagName==="SELECT" && el.dataset.k==="vat") t = "vat";
     const v = parseVal(t, el.value);
     if(v===""||v===null) delete row[el.dataset.k]; else row[el.dataset.k] = v;
+    if(t==="combo" && v && el.getAttribute("list")==="dl-contr" && !S.lists.contr.includes(v)){ S.lists.contr.push(v); return afterEdit("Контрагент «"+v+"» добавлен в справочник"); }
     return afterEdit();
   }
   if(el.dataset.kp){ const v = parseVal(el.dataset.t, el.value); S.kp[el.dataset.kp] = (el.dataset.t==="money"&&v==="") ? "" : v; return afterEdit(); }
